@@ -5,10 +5,10 @@ use app\BaseController;
 use think\facade\Db;
 use think\facade\Log;
 
-class GameVendors extends BaseController
+class GameAuth extends BaseController
 {
-    // 获取游戏厂商
-    public function get_vendors()
+    // 获取权限地址
+    public function get_auth()
     {
 
     }
