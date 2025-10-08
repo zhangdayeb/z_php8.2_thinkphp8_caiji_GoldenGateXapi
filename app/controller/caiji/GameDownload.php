@@ -22,8 +22,8 @@ class GameDownload extends BaseController
     public function __construct(\think\App $app)
     {
         parent::__construct($app);
-        // 本地存储路径：/www/wwwroot/cj.ampj998.top/public/uploads/game/
-        $this->localBasePath = $app->getRootPath() . 'public/uploads/game/';
+        // 本地存储路径：/www/wwwroot/cj.ampj998.top/public/uploads/ggkj/
+        $this->localBasePath = $app->getRootPath() . 'public/uploads/ggkj/';
     }
 
     /**
@@ -166,14 +166,15 @@ class GameDownload extends BaseController
     {
         $query = Db::name('ntp_api_games')
             ->field('id,supplier_code,game_code,game_name,game_img_url')
+            ->where('api_code_set', 'GGKJ')
             ->where('game_img_url_down', 0)
             ->where('game_img_url', '<>', '');
-            
+
         // 如果指定了起步ID，则从该ID开始
         if ($this->startId > 0) {
             $query->where('id', '>=', $this->startId);
         }
-        
+
         return $query->limit($this->batchSize)
             ->order('id', 'asc')
             ->select()
@@ -187,14 +188,15 @@ class GameDownload extends BaseController
     private function getTotalUnprocessedCount()
     {
         $query = Db::name('ntp_api_games')
+            ->where('api_code_set', 'GGKJ')
             ->where('game_img_url_down', 0)
             ->where('game_img_url', '<>', '');
-            
+
         // 如果指定了起步ID，则从该ID开始统计
         if ($this->startId > 0) {
             $query->where('id', '>=', $this->startId);
         }
-        
+
         return $query->count();
     }
 
@@ -216,15 +218,18 @@ class GameDownload extends BaseController
 
         // 检查本地文件是否已存在
         if (file_exists($fullLocalPath)) {
-            // 文件已存在，直接标记为已处理
-            $this->markAsProcessed($gameId);
-            
+            // 文件已存在，直接标记为已处理并更新路径
+            $webPath = '/uploads/ggkj/' . $localFilePath;
+            $this->markAsProcessed($gameId, $webPath);
+
             Log::info("processRecord - ID:{$gameId} 本地文件已存在，直接标记完成");
-            
+            Log::info("processRecord - ID:{$gameId} 更新路径为: {$webPath}");
+
             return [
                 'success' => true,
                 'action' => 'already_exists',
-                'local_path' => $fullLocalPath
+                'local_path' => $fullLocalPath,
+                'web_path' => $webPath
             ];
         }
 
@@ -250,17 +255,20 @@ class GameDownload extends BaseController
         Log::info("processRecord - ID:{$gameId} 下载结果: " . json_encode($downloadResult));
 
         if ($downloadResult['success']) {
-            // 下载成功，标记为已处理
-            $this->markAsProcessed($gameId);
-            
+            // 下载成功，标记为已处理并更新路径
+            $webPath = '/uploads/ggkj/' . $localFilePath;
+            $this->markAsProcessed($gameId, $webPath);
+
             Log::info("processRecord - ID:{$gameId} 下载成功并标记完成");
             Log::info("processRecord - ID:{$gameId} 文件大小: {$downloadResult['file_size']} 字节");
-            
+            Log::info("processRecord - ID:{$gameId} 更新路径为: {$webPath}");
+
             return [
                 'success' => true,
                 'action' => 'downloaded',
                 'remote_url' => $remoteUrl,
                 'local_path' => $fullLocalPath,
+                'web_path' => $webPath,
                 'file_size' => $downloadResult['file_size']
             ];
         } else {
@@ -282,19 +290,19 @@ class GameDownload extends BaseController
      */
     private function buildLocalFilePath($gameImgUrl)
     {
-        // 示例输入: https://images.ampj998.top/uploads/game/AA/LIVE/AA_MX-LIVE-001_1.png
-        // 需要提取: AA/LIVE/AA_MX-LIVE-001_1.png
-        
+        // 示例输入: https://example.com/images/zombie-outbrk.png
+        // 需要提取: images/zombie-outbrk.png（去掉域名，保留完整路径）
+
         $parsedUrl = parse_url($gameImgUrl);
         $path = $parsedUrl['path'] ?? '';
-        
-        // 移除 /uploads/game/ 前缀
-        $localPath = preg_replace('#^/uploads/game/?#', '', $path);
-        
+
+        // 去掉开头的斜杠
+        $localPath = ltrim($path, '/');
+
         Log::debug("buildLocalFilePath - 原始URL: {$gameImgUrl}");
         Log::debug("buildLocalFilePath - 解析路径: {$path}");
         Log::debug("buildLocalFilePath - 本地路径: {$localPath}");
-        
+
         return $localPath;
     }
 
@@ -305,22 +313,14 @@ class GameDownload extends BaseController
      */
     private function buildRemoteUrl($gameImgUrl)
     {
-        // 示例转换:
-        // 输入: https://images.ampj998.top/uploads/game/AA/LIVE/AA_MX-LIVE-001_1.png
-        // 输出: https://trendytreasures.art/game/AA/LIVE/AA_MX-LIVE-001_1.png
-        
-        $parsedUrl = parse_url($gameImgUrl);
-        $path = $parsedUrl['path'] ?? '';
-        
-        // 移除 /uploads/game/ 并添加 /game/ 前缀
-        $gamePath = preg_replace('#^/uploads/game/?#', '/game/', $path);
-        
-        $remoteUrl = 'https://trendytreasures.art' . $gamePath;
-        
+        // 直接使用数据库中的URL，不需要转换
+        // 输入: https://example.com/images/zombie-outbrk.png
+        // 输出: https://example.com/images/zombie-outbrk.png
+
         Log::debug("buildRemoteUrl - 原始URL: {$gameImgUrl}");
-        Log::debug("buildRemoteUrl - 远程URL: {$remoteUrl}");
-        
-        return $remoteUrl;
+        Log::debug("buildRemoteUrl - 远程URL: {$gameImgUrl}");
+
+        return $gameImgUrl;
     }
 
     /**
@@ -434,19 +434,24 @@ class GameDownload extends BaseController
     }
 
     /**
-     * 标记记录为已处理
+     * 标记记录为已处理并更新图片路径
      * @param int $gameId
+     * @param string $webPath
      * @return bool
      */
-    private function markAsProcessed($gameId)
+    private function markAsProcessed($gameId, $webPath)
     {
         try {
             $result = Db::name('ntp_api_games')
                 ->where('id', $gameId)
-                ->update(['game_img_url_down' => 1]);
-            
+                ->update([
+                    'game_img_url_down' => 1,
+                    'game_img_url' => $webPath
+                ]);
+
             if ($result !== false) {
                 Log::debug("markAsProcessed - 成功标记 ID:{$gameId} 为已处理");
+                Log::debug("markAsProcessed - 成功更新路径: {$webPath}");
                 return true;
             } else {
                 Log::warning("markAsProcessed - 标记失败 ID:{$gameId}");

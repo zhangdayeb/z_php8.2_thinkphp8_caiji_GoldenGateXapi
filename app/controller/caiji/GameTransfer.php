@@ -299,16 +299,16 @@ class GameTransfer extends BaseController
                 'api_code_set' => 'GGKJ',
                 'is_hot' => 1,
                 'supplier_id' => $supplierId,
-                'supplier_code' => mb_substr($supplierCode, 0, 200),
+                'supplier_code' => mb_substr($supplierCode ?? '', 0, 200),
                 'create_at' => $currentDate,
-                'game_name' => mb_substr($source['game_name'], 0, 200),
+                'game_name' => mb_substr($source['game_name'] ?? '', 0, 200),
                 'game_name_more_language' => $moreLanguage,
-                'game_code' => mb_substr($source['game_code'], 0, 600),
-                'game_type' => mb_substr($source['game_type'], 0, 200),
+                'game_code' => mb_substr($source['game_code'] ?? '', 0, 600),
+                'game_type' => mb_substr($source['game_type'] ?? '', 0, 200),
                 'game_img_url' => mb_substr($imageUrl, 0, 200),
-                'game_language' => mb_substr($source['game_language'], 0, 200),
-                'game_support_devices' => mb_substr($source['game_support_devices'], 0, 200),
-                'game_currency_code' => mb_substr($source['game_currency_code'], 0, 600)
+                'game_language' => mb_substr($source['game_language'] ?? '', 0, 200),
+                'game_support_devices' => mb_substr($source['game_support_devices'] ?? '', 0, 200),
+                'game_currency_code' => mb_substr($source['game_currency_code'] ?? '', 0, 600)
             ];
 
         } catch (\Exception $e) {
